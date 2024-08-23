@@ -5,4 +5,5 @@ Rust asynchronous client for community-authenticated SNMP. Uses
 
 ## Features
 
-* SNMP2c
+* SNMPv1
+*** Work In-Progress ***
