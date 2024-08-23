@@ -274,7 +274,7 @@ pub enum SnmpClientError {
     DecodingIncoming { message_error: SnmpMessageError },
 
     /// The response contains an invalid Protocol Data Unit.
-    InvalidPdu { pdu: Snmp2cPdu },
+    InvalidPdu { pdu: Snmp1Pdu },
 
     /// An unexpected number of variable bindings has been received.
     BindingCount { expected: usize, obtained: Vec<VariableBinding> },
