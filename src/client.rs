@@ -1,4 +1,4 @@
-//! SNMP2c client code.
+//! SNMPv1 client code.
 
 
 use std::collections::BTreeMap;
@@ -16,7 +16,7 @@ use tracing::instrument;
 
 use crate::debug;
 use crate::message::{
-    BindingValue, BulkPdu, ErrorStatus, InnerPdu, ObjectValue, Snmp2cMessage, Snmp2cPdu,
+    BindingValue, BulkPdu, ErrorStatus, InnerPdu, ObjectValue, Snmp1Message, Snmp1Pdu,
     SnmpMessageError, VariableBinding, VERSION_VALUE,
 };
 use crate::oid::ObjectIdentifier;
@@ -38,11 +38,11 @@ async fn maybe_timeout<T: Future>(timeout: Option<Duration>, future: T) -> Resul
 }
 
 
-/// A SNMP2c client.
+/// A SNMPv1 client.
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct Snmp2cClient {
-    low_level_client: LowLevelSnmp2cClient,
+pub struct Snmp1Client {
+    low_level_client: LowLevelSnmp1Client,
     target: SocketAddr,
     #[derivative(Debug="ignore")]
     community: Vec<u8>,
@@ -50,11 +50,11 @@ pub struct Snmp2cClient {
     timeout: Option<Duration>,
     retries: usize,
 }
-impl Snmp2cClient {
-    /// Creates a new SNMP2c client.
+impl Snmp1Client {
+    /// Creates a new SNMPv1 client.
     #[cfg_attr(feature = "tracing", instrument)]
     pub async fn new(target: SocketAddr, community: Vec<u8>, bind_addr: Option<SocketAddr>, timeout: Option<Duration>, retries: usize) -> Result<Self, SnmpClientError> {
-        let low_level_client = LowLevelSnmp2cClient::new(
+        let low_level_client = LowLevelSnmp1Client::new(
             bind_addr,
             timeout,
         ).await?;
@@ -394,12 +394,12 @@ pub struct OperationOptions {
 
 /// A low-level SNMP2c client, allowing some settings to be changed on each SNMP operation.
 #[derive(Debug)]
-pub struct LowLevelSnmp2cClient {
+pub struct LowLevelSnmp1Client {
     socket: UdpSocket,
     bind_addr: Option<SocketAddr>,
 }
-impl LowLevelSnmp2cClient {
-    /// Creates a new low-level SNMP2c client.
+impl LowLevelSnmp1Client {
+    /// Creates a new low-level SNMPv1 client.
     ///
     /// If `bind_addr` is `Some(_)`, binds the socket to the given IP address; otherwise, binds to
     /// `[::]:0` by default. (If your operating system or network setup does not support
@@ -431,7 +431,7 @@ impl LowLevelSnmp2cClient {
 
     /// Performs the sending of an SNMP message.
     #[cfg_attr(feature = "tracing", instrument)]
-    async fn send(&self, outgoing: &Snmp2cMessage, target: SocketAddr, timeout: Option<Duration>) -> Result<(), SnmpClientError> {
+    async fn send(&self, outgoing: &Snmp1Message, target: SocketAddr, timeout: Option<Duration>) -> Result<(), SnmpClientError> {
         let bytes = outgoing.to_bytes()
             .map_err(|message_error| SnmpClientError::EncodingOutgoing { message_error })?;
 
@@ -454,7 +454,7 @@ impl LowLevelSnmp2cClient {
     #[cfg_attr(feature = "tracing", instrument)]
     async fn single_send_receive(
         &self,
-        outgoing: &Snmp2cMessage,
+        outgoing: &Snmp1Message,
         target: SocketAddr,
         send_timeout: Option<Duration>,
         receive_timeout: Option<Duration>,
@@ -490,7 +490,7 @@ impl LowLevelSnmp2cClient {
             buf.truncate(bytes_received);
 
             // parse the response
-            let message = Snmp2cMessage::try_from_bytes(&buf)
+            let message = Snmp1Message::try_from_bytes(&buf)
                 .map_err(|message_error| SnmpClientError::DecodingIncoming { message_error })?;
 
             debug!("message from {} is {:?}", sender, message);
@@ -506,7 +506,7 @@ impl LowLevelSnmp2cClient {
         };
 
         match message.pdu {
-            Snmp2cPdu::Response(inner) => Ok(inner),
+            Snmp1Pdu::Response(inner) => Ok(inner),
             _ => Err(SnmpClientError::InvalidPdu { pdu: message.pdu }),
         }
     }
@@ -515,7 +515,7 @@ impl LowLevelSnmp2cClient {
     #[cfg_attr(feature = "tracing", instrument)]
     async fn send_receive(
         &self,
-        outgoing: &Snmp2cMessage,
+        outgoing: &Snmp1Message,
         options: &OperationOptions,
     ) -> Result<InnerPdu, SnmpClientError> {
         for _attempt in 0..(options.retries+1) {
@@ -603,10 +603,10 @@ impl LowLevelSnmp2cClient {
         options: &OperationOptions,
     ) -> Result<ObjectValue, SnmpClientError> {
         // prepare Get message
-        let get_message = Snmp2cMessage {
+        let get_message = Snmp1Message {
             version: VERSION_VALUE,
             community: options.community.clone(),
-            pdu: Snmp2cPdu::GetRequest(InnerPdu {
+            pdu: Snmp1Pdu::GetRequest(InnerPdu {
                 request_id,
                 error_status: ErrorStatus::NoError,
                 error_index: 0,
@@ -657,10 +657,10 @@ impl LowLevelSnmp2cClient {
             })
             .collect();
         let binding_count = variable_bindings.len();
-        let get_message = Snmp2cMessage {
+        let get_message = Snmp1Message {
             version: VERSION_VALUE,
             community: options.community.clone(),
-            pdu: Snmp2cPdu::GetRequest(InnerPdu {
+            pdu: Snmp1Pdu::GetRequest(InnerPdu {
                 request_id,
                 error_status: ErrorStatus::NoError,
                 error_index: 0,
@@ -698,10 +698,10 @@ impl LowLevelSnmp2cClient {
         options: &OperationOptions,
     ) -> Result<ObjectValue, SnmpClientError> {
         // prepare Set message
-        let get_message = Snmp2cMessage {
+        let get_message = Snmp1Message {
             version: VERSION_VALUE,
             community: options.community.clone(),
-            pdu: Snmp2cPdu::SetRequest(InnerPdu {
+            pdu: Snmp1Pdu::SetRequest(InnerPdu {
                 request_id,
                 error_status: ErrorStatus::NoError,
                 error_index: 0,
@@ -752,10 +752,10 @@ impl LowLevelSnmp2cClient {
             })
             .collect();
         let binding_count = variable_bindings.len();
-        let get_message = Snmp2cMessage {
+        let get_message = Snmp1Message {
             version: VERSION_VALUE,
             community: options.community.clone(),
-            pdu: Snmp2cPdu::SetRequest(InnerPdu {
+            pdu: Snmp1Pdu::SetRequest(InnerPdu {
                 request_id,
                 error_status: ErrorStatus::NoError,
                 error_index: 0,
@@ -793,10 +793,10 @@ impl LowLevelSnmp2cClient {
         options: &OperationOptions,
     ) -> Result<(ObjectIdentifier, ObjectValue), SnmpClientError> {
         // prepare GetNext message
-        let get_next_message = Snmp2cMessage {
+        let get_next_message = Snmp1Message {
             version: VERSION_VALUE,
             community: options.community.clone(),
-            pdu: Snmp2cPdu::GetNextRequest(InnerPdu {
+            pdu: Snmp1Pdu::GetNextRequest(InnerPdu {
                 request_id,
                 error_status: ErrorStatus::NoError,
                 error_index: 0,
@@ -858,10 +858,10 @@ impl LowLevelSnmp2cClient {
                 value: BindingValue::Unspecified,
             })
             .collect();
-        let get_bulk_message = Snmp2cMessage {
+        let get_bulk_message = Snmp1Message {
             version: VERSION_VALUE,
             community: options.community.clone(),
-            pdu: Snmp2cPdu::GetBulkRequest(BulkPdu {
+            pdu: Snmp1Pdu::GetBulkRequest(BulkPdu {
                 request_id,
                 non_repeaters,
                 max_repetitions,
@@ -892,10 +892,10 @@ impl LowLevelSnmp2cClient {
                 value: BindingValue::Value(value),
             })
             .collect();
-        let trap_message = Snmp2cMessage {
+        let trap_message = Snmp1Message {
             version: VERSION_VALUE,
             community: options.community.clone(),
-            pdu: Snmp2cPdu::SnmpV2Trap(InnerPdu {
+            pdu: Snmp1Pdu::Snmp1Trap(InnerPdu {
                 request_id,
                 error_status: ErrorStatus::NoError,
                 error_index: 0,
@@ -927,10 +927,10 @@ impl LowLevelSnmp2cClient {
                 value: BindingValue::Value(value),
             })
             .collect();
-        let inform_message = Snmp2cMessage {
+        let inform_message = Snmp1Message {
             version: VERSION_VALUE,
             community: options.community.clone(),
-            pdu: Snmp2cPdu::InformRequest(InnerPdu {
+            pdu: Snmp1Pdu::InformRequest(InnerPdu {
                 request_id,
                 error_status: ErrorStatus::NoError,
                 error_index: 0,
