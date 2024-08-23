@@ -1,11 +1,11 @@
 [package]
-name = "csnmp"
+name = "csnmpv1"
 version = "0.6.0"
 edition = "2021"
 rust-version = "1.67"
 license = "CC0-1.0"
-description = "Community-based async (Tokio) SNMP client library"
-repository = "https://github.com/RavuAlHemio/csnmp"
+description = "Community-based async (Tokio) SNMPv1 client library"
+repository = "https://github.com/selenesultai/csnmpv1"
 readme = "README.md"
 keywords = ["snmp", "async", "tokio"]
 
