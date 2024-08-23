@@ -462,7 +462,7 @@ impl Snmp1Pdu {
             Self::Response(p) => p.request_id,
             Self::SetRequest(p) => p.request_id,
             Self::InformRequest(p) => p.request_id,
-            Self::SnmpV2Trap(p) => p.request_id,
+            Self::Snmp1Trap(p) => p.request_id,
         }
     }
 }
