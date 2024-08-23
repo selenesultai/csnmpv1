@@ -26,7 +26,7 @@ async fn run() -> ExitCode {
     let community = Vec::from(args[2].as_bytes());
     let top_oid: ObjectIdentifier = args[3].parse().expect("failed to parse OID");
 
-    let client_res = Snmp2cClient::new(
+    let client_res = Snmp1Client::new(
         sock_addr,
         community,
         Some("0.0.0.0:0".parse().unwrap()),

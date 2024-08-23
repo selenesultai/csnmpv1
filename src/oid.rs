@@ -1,6 +1,6 @@
-//! Information collection using SNMP2c.
+//! Information collection using SNMPv1.
 //!
-//! SNMP2c is the Simple Network Management Protocol version 2 with authentication using community
+//! SNMPv1 is the Simple Network Management Protocol version 1 with authentication using community
 //! strings. This implementation assumes UDP as the transport protocol.
 
 use std::cmp::Ordering;
