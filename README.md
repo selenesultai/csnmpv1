@@ -6,4 +6,5 @@ Rust asynchronous client for community-authenticated SNMP. Uses
 ## Features
 
 * SNMPv1
-*** Work In-Progress ***
+
+This crate is a slightly modified fork of csnmp which provides a v2c client. It is confirmed functional for get, set, and get_next requests.
