@@ -12,10 +12,10 @@ use simple_asn1::{
 use crate::oid::{ObjectIdentifier, ObjectIdentifierConversionError};
 
 
-/// Version value stored in every SNMP2c message.
+/// Version value stored in every SNMPv1 message.
 ///
-/// See RFC1901, section 3.
-pub const VERSION_VALUE: i64 = 1;
+/// See RFC1157, section 4.
+pub const VERSION_VALUE: i64 = 0;
 
 
 /// Encodes which type of ASN.1 value was expected.
@@ -381,27 +381,27 @@ impl Asn1BlockExtensions for ASN1Block {
 }
 
 
-// RFC1901, section 3.
+// RFC1157, section 4.
 #[derive(Clone, Derivative, Eq, Hash, PartialEq)]
 #[derivative(Debug)]
-pub struct Snmp2cMessage {
+pub struct Snmp1Message {
     pub version: i64,
     #[derivative(Debug="ignore")]
     pub community: Vec<u8>,
-    pub pdu: Snmp2cPdu,
+    pub pdu: Snmp1Pdu,
 }
-impl Snmp2cMessage {
-    /// Serializes this SNMP2c message into a vector of bytes.
+impl Snmp1Message {
+    /// Serializes this SNMPv1 message into a vector of bytes.
     pub fn to_bytes(&self) -> Result<Vec<u8>, SnmpMessageError> {
         simple_asn1::der_encode(self)
     }
 
-    /// Attempts to deserialize this SNMP2c message from a slice of bytes.
+    /// Attempts to deserialize this SNMPv1 message from a slice of bytes.
     pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, SnmpMessageError> {
         simple_asn1::der_decode(bytes)
     }
 }
-impl FromASN1 for Snmp2cMessage {
+impl FromASN1 for Snmp1Message {
     type Error = SnmpMessageError;
 
     fn from_asn1(v: &[ASN1Block]) -> Result<(Self, &[ASN1Block]), Self::Error> {
@@ -417,7 +417,7 @@ impl FromASN1 for Snmp2cMessage {
             });
         }
         let community = seq[1].as_bytes()?.to_vec();
-        let (pdu, _rest) = Snmp2cPdu::from_asn1(&seq[2..3])?;
+        let (pdu, _rest) = Snmp1Pdu::from_asn1(&seq[2..3])?;
 
         let message = Self {
             version,
@@ -427,7 +427,7 @@ impl FromASN1 for Snmp2cMessage {
         Ok((message, &v[1..]))
     }
 }
-impl ToASN1 for Snmp2cMessage {
+impl ToASN1 for Snmp1Message {
     type Error = SnmpMessageError;
 
     fn to_asn1_class(&self, _c: ASN1Class) -> Result<Vec<ASN1Block>, Self::Error> {
@@ -443,16 +443,16 @@ impl ToASN1 for Snmp2cMessage {
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub enum Snmp2cPdu {
+pub enum Snmp1Pdu {
     GetRequest(InnerPdu),
     GetNextRequest(InnerPdu),
     GetBulkRequest(BulkPdu),
     Response(InnerPdu),
     SetRequest(InnerPdu),
     InformRequest(InnerPdu),
-    SnmpV2Trap(InnerPdu),
+    Snmp1Trap(InnerPdu),
 }
-impl Snmp2cPdu {
+impl Snmp1Pdu {
     /// Returns the request ID from the inner SNMP2c Protocol Data Unit (PDU).
     pub fn request_id(&self) -> i32 {
         match self {
@@ -466,7 +466,7 @@ impl Snmp2cPdu {
         }
     }
 }
-impl FromASN1 for Snmp2cPdu {
+impl FromASN1 for Snmp1Pdu {
     type Error = SnmpMessageError;
 
     fn from_asn1(v: &[ASN1Block]) -> Result<(Self, &[ASN1Block]), Self::Error> {
@@ -495,7 +495,7 @@ impl FromASN1 for Snmp2cPdu {
             } else if tag == tag_6 {
                 Self::InformRequest(inner_pdu)
             } else if tag == tag_7 {
-                Self::SnmpV2Trap(inner_pdu)
+                Self::Snmp1Trap(inner_pdu)
             } else {
                 unreachable!()
             }
@@ -511,7 +511,7 @@ impl FromASN1 for Snmp2cPdu {
         Ok((outer_pdu, &v[1..]))
     }
 }
-impl ToASN1 for Snmp2cPdu {
+impl ToASN1 for Snmp1Pdu {
     type Error = SnmpMessageError;
 
     fn to_asn1_class(&self, _c: ASN1Class) -> Result<Vec<ASN1Block>, Self::Error> {
@@ -522,7 +522,7 @@ impl ToASN1 for Snmp2cPdu {
             Self::SetRequest(pdu) => (3, pdu.to_asn1()?),
             Self::GetBulkRequest(pdu) => (5, pdu.to_asn1()?),
             Self::InformRequest(pdu) => (6, pdu.to_asn1()?),
-            Self::SnmpV2Trap(pdu) => (7, pdu.to_asn1()?),
+            Self::Snmp1Trap(pdu) => (7, pdu.to_asn1()?),
         };
 
         let mut all_inner = Vec::new();
@@ -1149,12 +1149,12 @@ mod tests {
               5,
         ];
 
-        let asn1: Snmp2cMessage = der_decode(&bytes).unwrap();
+        let asn1: Snmp1Message = der_decode(&bytes).unwrap();
         assert_eq!(asn1.version, 1);
         assert_eq!(asn1.community, b"Fqate");
 
         let inner_pdu = match asn1.pdu {
-            Snmp2cPdu::Response(inner) => inner,
+            Snmp1Pdu::Response(inner) => inner,
             _ => panic!(),
         };
         assert_eq!(inner_pdu.request_id, 649110371);
@@ -1186,7 +1186,7 @@ mod tests {
 
     #[test]
     fn test_encode1() {
-        let message = Snmp2cMessage {
+        let message = Snmp1Message {
             version: 1,
             community: b"Fqate".to_vec(),
             pdu: Snmp2cPdu::Response(InnerPdu {
@@ -1292,12 +1292,12 @@ mod tests {
               6,   3,  16,   2,   2,   1,
         ];
 
-        let asn1: Snmp2cMessage = der_decode(&bytes).unwrap();
+        let asn1: Snmp1Message = der_decode(&bytes).unwrap();
         assert_eq!(asn1.version, 1);
         assert_eq!(asn1.community, b"9v79I");
 
         let inner_pdu = match asn1.pdu {
-            Snmp2cPdu::Response(inner) => inner,
+            Snmp1Pdu::Response(inner) => inner,
             _ => panic!(),
         };
         assert_eq!(inner_pdu.request_id, 1);
@@ -1329,7 +1329,7 @@ mod tests {
 
     #[test]
     fn test_encode2() {
-        let message = Snmp2cMessage {
+        let message = Snmp1Message {
             version: 1,
             community: b"9v79I".to_vec(),
             pdu: Snmp2cPdu::Response(InnerPdu {
@@ -1439,12 +1439,12 @@ mod tests {
               6,   1,   0,   2,   4,  36,  24,   7,  18,
         ];
 
-        let asn1: Snmp2cMessage = der_decode(&bytes).unwrap();
+        let asn1: Snmp1Message = der_decode(&bytes).unwrap();
         assert_eq!(asn1.version, 1);
         assert_eq!(asn1.community, b"readonly");
 
         let inner_pdu = match asn1.pdu {
-            Snmp2cPdu::Response(inner) => inner,
+            Snmp1Pdu::Response(inner) => inner,
             _ => panic!(),
         };
         assert_eq!(inner_pdu.request_id, 1);
@@ -1476,10 +1476,10 @@ mod tests {
 
     #[test]
     fn test_encode3() {
-        let message = Snmp2cMessage {
+        let message = Snmp1Message {
             version: 1,
             community: b"readonly".to_vec(),
-            pdu: Snmp2cPdu::Response(InnerPdu {
+            pdu: Snmp1Pdu::Response(InnerPdu {
                 request_id: 1,
                 error_status: ErrorStatus::NoError,
                 error_index: 0,
